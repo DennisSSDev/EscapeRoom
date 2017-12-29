@@ -30,4 +30,8 @@ private:
 	UPhysicsHandleComponent* Phys_Handle = nullptr;
 	UInputComponent* Input_Comp = nullptr;
 	void Grab();
+	void Released();
+	void FindPhysicsComponent();
+	void SetupInputComponent();
+	FHitResult GetPhysicsBodyInReach() const;
 };
