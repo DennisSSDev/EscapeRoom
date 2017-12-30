@@ -34,4 +34,6 @@ private:
 	void FindPhysicsComponent();
 	void SetupInputComponent();
 	FHitResult GetPhysicsBodyInReach() const;
+	FVector GetReachLineEnd() const;
+	FVector GetReachLineStart() const;
 };

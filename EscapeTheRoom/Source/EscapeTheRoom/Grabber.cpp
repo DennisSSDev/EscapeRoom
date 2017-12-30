@@ -6,6 +6,8 @@
 #include "DrawDebugHelpers.h"
 #include "Components/PrimitiveComponent.h"
 #define OUT
+
+
 // Sets default values for this component's properties
 UGrabber::UGrabber()
 {
@@ -14,52 +16,30 @@ UGrabber::UGrabber()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-
 // Called when the game starts
 void UGrabber::BeginPlay()
 {
 	Super::BeginPlay();
-
-
-	UE_LOG(LogTemp, Warning, TEXT("The Basic Game Mode is Initialized"));
-	
 	FindPhysicsComponent();
 	SetupInputComponent();
 }
-
 
 // Called every frame
 void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (Phys_Handle->GrabbedComponent)
+	if (!Phys_Handle) return;
+	if (Phys_Handle->GrabbedComponent != nullptr)
 	{
-		FVector PlayerVLocation;
-		FRotator PlayerVRotation;
-
-		GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint
-		(
-			OUT PlayerVLocation,
-			OUT PlayerVRotation
-		);
-		FVector LineTraceEnd = PlayerVLocation + (PlayerVRotation.Vector()*Reach);
-
-		Phys_Handle->SetTargetLocation(LineTraceEnd);
+		Phys_Handle->SetTargetLocation(GetReachLineEnd());
 	}
-	
-	
-
 }
 
 void UGrabber::FindPhysicsComponent()
 {
 	Phys_Handle = GetOwner()->FindComponentByClass<UPhysicsHandleComponent>();
 	Input_Comp = GetOwner()->FindComponentByClass<UInputComponent>();
-	if (Phys_Handle)
-	{
-
-	}
-	else
+	if(Phys_Handle == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("The Physcis Component on %s could not be found"), *GetOwner()->GetName());
 	}
@@ -67,10 +47,8 @@ void UGrabber::FindPhysicsComponent()
 
 void UGrabber::SetupInputComponent()
 {
-	if (Input_Comp)
+	if (Input_Comp != nullptr)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Input Component Found"));
-		//Bind controls
 		Input_Comp->BindAction("Grab", IE_Pressed, this, &UGrabber::Grab);
 		Input_Comp->BindAction("Grab", IE_Released, this, &UGrabber::Released);
 	}
@@ -82,54 +60,68 @@ void UGrabber::SetupInputComponent()
 
 void UGrabber::Grab()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Grab pressed"));
+	if (!Phys_Handle) return;
 	auto HitResult = GetPhysicsBodyInReach();
 	UPrimitiveComponent* ComponentToGrab = HitResult.GetComponent();
 	auto HitActor = HitResult.GetActor();
 	if (HitActor)
 	{
-		Phys_Handle->GrabComponent
+		Phys_Handle->GrabComponentAtLocationWithRotation
 		(
 			ComponentToGrab,
-			NAME_None,
+			NAME_None, //No bones needed
 			ComponentToGrab->GetOwner()->GetActorLocation(),
-			true//allow rotation
+			FRotator(0.0f,0.0f,0.0f)
 		);
 	}
-	
 }
+
 void UGrabber::Released()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Grab released"));
+	if (!Phys_Handle) return;
+	Phys_Handle->ReleaseComponent();
 }
 
 FHitResult UGrabber::GetPhysicsBodyInReach() const
 {
+	FHitResult HitResult;
+	FCollisionQueryParams TraceParams(FName(TEXT("")), false, GetOwner());
+	GetWorld()->LineTraceSingleByObjectType
+	(
+		OUT HitResult,
+		GetReachLineStart(),
+		GetReachLineEnd(),
+		FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
+		TraceParams
+	);
+	AActor* HitActor = HitResult.GetActor();
+	if (HitActor != nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Physical object Hit detected: %s "), *HitActor->GetName());
+	}
+	return HitResult;
+}
+
+FVector UGrabber::GetReachLineEnd() const
+{
 	FVector PlayerVLocation;
 	FRotator PlayerVRotation;
-
 	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint
 	(
 		OUT PlayerVLocation,
 		OUT PlayerVRotation
 	);
-	FVector LineTraceEnd = PlayerVLocation + (PlayerVRotation.Vector()*Reach);
-
-	FCollisionQueryParams TraceParams(FName(TEXT("")), false, GetOwner());
-	FHitResult Hit;
-	GetWorld()->LineTraceSingleByObjectType
-	(
-		OUT Hit,
-		PlayerVLocation,
-		LineTraceEnd,
-		FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
-		TraceParams
-	);
-	AActor* HitActor = Hit.GetActor();
-	if (HitActor != NULL)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Physical object Hit detected: %s "), *HitActor->GetName());
-	}
-	return Hit;
+	return PlayerVLocation + (PlayerVRotation.Vector()*Reach);
 }
 
+FVector UGrabber::GetReachLineStart() const
+{
+	FVector PlayerVLocation;
+	FRotator PlayerVRotation;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint
+	(
+		OUT PlayerVLocation,
+		OUT PlayerVRotation
+	);
+	return PlayerVLocation;
+}
